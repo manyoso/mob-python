@@ -1,0 +1,6 @@
+[Main]
+ConfigureCommand=echo ./configure-foo %(Device.Main.Architecture)s
+BuildCommand=echo make
+CleanCommand=echo make clean
+Depends=bar
+Installs=libfoo

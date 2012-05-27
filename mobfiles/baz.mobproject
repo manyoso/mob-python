@@ -1,0 +1,5 @@
+[Main]
+ConfigureCommand=echo ./configure-baz %(Device.Main.Architecture)s
+BuildCommand=echo make
+CleanCommand=echo make clean
+Installs=libbaz

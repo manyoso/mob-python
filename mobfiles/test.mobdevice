@@ -1,0 +1,6 @@
+[Main]
+IPAddress=local
+Architecture=x86
+Version=0.1
+ConnectCommand=echo "Connecting device..."
+DisconnectCommand=echo "Disconnecting device..."

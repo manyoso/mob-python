@@ -1,0 +1,2 @@
+[Main]
+InstallCommand=echo cp libfoo.so /tmp/%(Device.Main.Name)s

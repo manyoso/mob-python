@@ -1,0 +1,2 @@
+[Main]
+InstallCommand=echo cp libbar.so /tmp/%(Device.Main.Name)s
