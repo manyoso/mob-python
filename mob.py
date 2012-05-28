@@ -127,23 +127,36 @@ def resolveDependencies(target, resolved):
             resolveDependencies(dependency, resolved)
     resolved.append(target)
 
-# Argument parsing
+# Get all the mobfiles
+paths = ['./mobfiles']
+if 'MOBFILES' in os.environ:
+    paths = paths + os.environ['MOBFILES'].split(':')
+
 possibleDevices = []
-for name in glob.glob('./mobfiles/*.mobdevice'):
-    possibleDevices.append(os.path.splitext(os.path.basename(name))[0])
-
 possibleProjects = []
-for name in glob.glob('./mobfiles/*.mobproject'):
-    possibleProjects.append(os.path.splitext(os.path.basename(name))[0])
-
 possibleInstalls = []
-for name in glob.glob('./mobfiles/*.mobinstall'):
-    possibleInstalls.append(os.path.splitext(os.path.basename(name))[0])
 
+for path in paths:
+    for name in glob.glob(path + '/*.mobdevice'):
+        f = os.path.splitext(os.path.basename(name))[0]
+        if not f in possibleDevices:
+            possibleDevices.append(f)
+
+    for name in glob.glob(path + '/*.mobproject'):
+        f = os.path.splitext(os.path.basename(name))[0]
+        if not f in possibleProjects:
+            possibleProjects.append(f)
+
+    for name in glob.glob(path + '/*.mobinstall'):
+        f = os.path.splitext(os.path.basename(name))[0]
+        if not f in possibleInstalls:
+            possibleInstalls.append(f)
+
+# Argument parsing
 parser = argparse.ArgumentParser(prog='mob', description='Mob is a system builder and installer.')
 subparsers = parser.add_subparsers(title='commands', dest='command', help="see \'mob <command> --help\' for more information")
-parser_build = subparsers.add_parser('build', help='builds the specified project target(s)', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser_install = subparsers.add_parser('install', help='installs the specified project target(s)', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser_build = subparsers.add_parser('build', help='builds the specified target(s)', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser_install = subparsers.add_parser('install', help='installs the specified target(s)', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser_device = subparsers.add_parser('device', help='commands for the specified device', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 # Options for building
