@@ -11,6 +11,32 @@ import subprocess
 import sys
 import time
 
+# Get all the mobfiles
+paths = ['./mobfiles']
+if 'MOBFILES' in os.environ:
+    paths = paths + os.environ['MOBFILES'].split(':')
+
+possibleDevices = {}
+possibleProjects = {}
+possibleInstalls = {}
+
+for path in paths:
+    for name in glob.glob(path + '/*.mobdevice'):
+        f = os.path.splitext(os.path.basename(name))[0]
+        if not f in possibleDevices:
+            possibleDevices[f]=name
+
+    for name in glob.glob(path + '/*.mobproject'):
+        f = os.path.splitext(os.path.basename(name))[0]
+        if not f in possibleProjects:
+            possibleProjects[f]=name
+
+    for name in glob.glob(path + '/*.mobinstall'):
+        f = os.path.splitext(os.path.basename(name))[0]
+        if not f in possibleInstalls:
+            possibleInstalls[f]=name
+
+# Basic output messages that are color coded
 class bcolors:
     FUCHSIA = '\033[95m'
     GREEN = '\033[92m'
@@ -26,6 +52,7 @@ def printMobMessage(message, end=False):
 def printMobError(message):
     print >> sys.stderr, bcolors.GREEN + "<==== " + bcolors.RED + "ERROR: " + bcolors.FUCHSIA + message + bcolors.WHITE
 
+# An ini file parse
 class INIParser(ConfigParser.SafeConfigParser):
     def as_dict(self, prefix=''):
         r = {}
@@ -37,12 +64,12 @@ class INIParser(ConfigParser.SafeConfigParser):
             r.pop(prefix + section + '.__name__', None)
         return r
 
+# Represents a config file
 class ConfigFile:
-    def __init__(self, name, typeName, defaults):
+    def __init__(self, name, configFile, defaults):
         self.name = name
-        self.typeName = typeName
         self.config = INIParser(defaults)
-        self.configFile = os.path.abspath("mobfiles/" + self.name + ".mob" + self.typeName)
+        self.configFile = configFile
         self.parsed = False
         if not os.path.exists(self.configFile):
             printMobError("Could not find the config file `" + self.configFile + "`")
@@ -55,9 +82,10 @@ class ConfigFile:
             if self.config.has_section('Main'):
                 self.config.set('Main', 'Name', name)
 
+# A device file
 class Device(ConfigFile):
     def __init__(self, name):
-        ConfigFile.__init__(self, name, "device", {})
+        ConfigFile.__init__(self, name, possibleDevices[name], {})
 
     def architecture(self):
         return self.config.get('Main', 'Architecture') if self.parsed and self.config.has_option('Main', 'Architecture') else ""
@@ -68,14 +96,16 @@ class Device(ConfigFile):
     def disconnectCommand(self):
         return self.config.get('Main', 'DisconnectCommand') if self.parsed and self.config.has_option('Main', 'DisconnectCommand') else ""
 
+# Basic target class
 class Target:
     def __init__(self, name):
         self.name = name
         self.dependencies = []
 
+# Project target class
 class ProjectTarget(ConfigFile, Target):
     def __init__(self, name, arguments, device, parents = None):
-        ConfigFile.__init__(self, name, "project", dict(arguments.items() + device.config.as_dict('device').items()))
+        ConfigFile.__init__(self, name, possibleProjects[name], dict(arguments.items() + device.config.as_dict('device').items()))
         Target.__init__(self, name)
         self.device = device
         self.parents = parents
@@ -112,9 +142,10 @@ class ProjectTarget(ConfigFile, Target):
     def __eq__(self, other):
         return self.name == other.name
 
+# Install target class
 class InstallTarget(ConfigFile, Target):
     def __init__(self, name, arguments, device):
-        ConfigFile.__init__(self, name, "install", dict(arguments.items() + device.config.as_dict('device').items()))
+        ConfigFile.__init__(self, name, possibleInstalls[name], dict(arguments.items() + device.config.as_dict('device').items()))
         Target.__init__(self, name)
 
     def installCommand(self):
@@ -126,31 +157,6 @@ def resolveDependencies(target, resolved):
         if dependency not in resolved:
             resolveDependencies(dependency, resolved)
     resolved.append(target)
-
-# Get all the mobfiles
-paths = ['./mobfiles']
-if 'MOBFILES' in os.environ:
-    paths = paths + os.environ['MOBFILES'].split(':')
-
-possibleDevices = []
-possibleProjects = []
-possibleInstalls = []
-
-for path in paths:
-    for name in glob.glob(path + '/*.mobdevice'):
-        f = os.path.splitext(os.path.basename(name))[0]
-        if not f in possibleDevices:
-            possibleDevices.append(f)
-
-    for name in glob.glob(path + '/*.mobproject'):
-        f = os.path.splitext(os.path.basename(name))[0]
-        if not f in possibleProjects:
-            possibleProjects.append(f)
-
-    for name in glob.glob(path + '/*.mobinstall'):
-        f = os.path.splitext(os.path.basename(name))[0]
-        if not f in possibleInstalls:
-            possibleInstalls.append(f)
 
 # Argument parsing
 parser = argparse.ArgumentParser(prog='mob', description='Mob is a system builder and installer.')
@@ -167,8 +173,8 @@ parser_build.add_argument('--no-config', dest='noconfig', action='store_true', h
 parser_build.add_argument('--clean', dest='clean', action='store_true', help='specifies a clean build')
 parser_build.add_argument('--type', dest='type', choices=['debug','release'], default='release', help='specifies the type of build')
 parser_build.add_argument('--args', dest='args', metavar='\"{key: value, key: value, ...}\"', help='dictionary of arguments to pass along to the target(s)')
-parser_build.add_argument('device', nargs=1, choices=possibleDevices, help='the device target')
-parser_build.add_argument('targets', nargs='+', choices=possibleProjects, help='one or more build target(s)')
+parser_build.add_argument('device', nargs=1, choices=possibleDevices.keys(), help='the device target')
+parser_build.add_argument('targets', nargs='+', choices=possibleProjects.keys(), help='one or more build target(s)')
 
 # Options for installing
 parser_install.add_argument('--time', dest='time', action='store_true', help='displays elapsed time for each command')
@@ -176,8 +182,8 @@ parser_install.add_argument('--quiet', dest='quiet', action='store_true', help='
 parser_install.add_argument('--no-deps', dest='nodeps', action='store_true', help='turns off dependency checking')
 parser_install.add_argument('--type', dest='type', choices=['debug','release'], default='release', help='specifies the type of build')
 parser_install.add_argument('--args', dest='args', metavar='\"{key: value, key: value, ...}\"', help='dictionary of arguments to pass along to the target(s)')
-parser_install.add_argument('device', nargs=1, choices=possibleDevices, help='the device target')
-parser_install.add_argument('targets', nargs='+', choices=possibleProjects + possibleInstalls, help='one or more install target(s)')
+parser_install.add_argument('device', nargs=1, choices=possibleDevices.keys(), help='the device target')
+parser_install.add_argument('targets', nargs='+', choices=possibleProjects.keys() + possibleInstalls.keys(), help='one or more install target(s)')
 
 # Options for device
 parser_device.add_argument('--time', dest='time', action='store_true', help='displays elapsed time for each command')
@@ -185,7 +191,7 @@ parser_device.add_argument('--quiet', dest='quiet', action='store_true', help='t
 connectGroup = parser_device.add_mutually_exclusive_group(required=True)
 connectGroup.add_argument('--connect', action='store_true', help='connects the specified device')
 connectGroup.add_argument('--disconnect', action='store_true', help='disconnects the specified device')
-parser_device.add_argument('device', nargs=1, choices=possibleDevices, help='the device target')
+parser_device.add_argument('device', nargs=1, choices=possibleDevices.keys(), help='the device target')
 
 args = parser.parse_args()
 
